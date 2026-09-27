@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/driving/screens/driving_detection_screen.dart';
 
 /// ใช้ navigatorKey เพื่อให้ NotificationService สั่ง navigate ได้แม้ตอนที่
 /// callback มาจาก native/notification tap ซึ่งไม่มี BuildContext ตรง ๆ
@@ -16,7 +17,7 @@ class DrowsinessApp extends StatelessWidget {
       title: 'ตรวจจับอาการหลับใน',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const LoginScreen(),
+      home: const DrivingDetectionScreen(),
     );
   }
 }

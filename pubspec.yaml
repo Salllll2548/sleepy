@@ -32,6 +32,8 @@ dependencies:
   # กราฟแท่งสถิติรายวัน (หน้าสถิติการขับขี่)
   fl_chart: ^0.68.0
 
+  ultralytics_yolo: ^0.6.15
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -40,3 +42,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sounds/
+    - assets/models/best.tflite
