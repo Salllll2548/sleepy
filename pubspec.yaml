@@ -1,0 +1,46 @@
+name: sleepy
+description: Drowsiness detection app connected to car Bluetooth
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # กล้อง
+  camera: ^0.10.6
+
+  # AI ตรวจจับใบหน้า/ดวงตา/มุมหัว (on-device, ฟรี)
+  google_mlkit_face_detection: ^0.10.0
+
+  # แจ้งเตือน
+  flutter_local_notifications: ^17.2.3
+
+  # เสียงเตือน + สั่น
+  audioplayers: ^6.0.0
+  vibration: ^2.0.0
+
+  # ขอ permission (กล้อง/บลูทูธ/แจ้งเตือน)
+  permission_handler: ^11.3.1
+
+  # เก็บค่า config (เช่น MAC address รถที่จับคู่ไว้, threshold)
+  shared_preferences: ^2.2.3
+
+  # กราฟแท่งสถิติรายวัน (หน้าสถิติการขับขี่)
+  fl_chart: ^0.68.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+  google_sign_in: ^7.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/
