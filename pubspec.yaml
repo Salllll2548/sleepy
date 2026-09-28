@@ -21,7 +21,6 @@ dependencies:
 
   # เสียงเตือน + สั่น
   audioplayers: ^6.0.0
-  vibration: ^2.0.0
 
   # ขอ permission (กล้อง/บลูทูธ/แจ้งเตือน)
   permission_handler: ^11.3.1

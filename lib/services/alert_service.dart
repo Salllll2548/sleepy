@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 import 'notification_service.dart';
 
-/// เรียกเมื่อ risk score ถึงเกณฑ์ — เล่นเสียงเตือนดัง ๆ + สั่นค้าง + push notification
+/// เรียกเมื่อ risk score ถึงเกณฑ์ — เล่นเสียงเตือน + สั่นซ้ำ + push notification
 class AlertService {
   final AudioPlayer _player = AudioPlayer();
+  Timer? _vibrateTimer;
   bool _isAlerting = false;
 
   Future<void> triggerAlert() async {
@@ -13,20 +15,21 @@ class AlertService {
 
     await NotificationService().showDrowsinessAlert();
 
-    // เล่นเสียง alarm วนซ้ำ — วางไฟล์เสียงไว้ที่ assets/sounds/alarm.mp3
-    // แล้วประกาศใน pubspec.yaml ใต้ flutter: assets:
     await _player.setReleaseMode(ReleaseMode.loop);
     await _player.play(AssetSource('sounds/alarm.mp3'));
 
-    if (await Vibration.hasVibrator() ?? false) {
-      Vibration.vibrate(pattern: [0, 500, 200, 500, 200, 500], repeat: 0);
-    }
+    // สั่นซ้ำทุก 700 ms จนกว่าจะเรียก stopAlert()
+    HapticFeedback.vibrate();
+    _vibrateTimer = Timer.periodic(
+      const Duration(milliseconds: 700),
+      (_) => HapticFeedback.vibrate(),
+    );
   }
 
-  /// เรียกเมื่อผู้ใช้กดยืนยันว่าไหวแล้ว หรือคะแนนลดลงต่ำกว่าเกณฑ์
   Future<void> stopAlert() async {
     _isAlerting = false;
+    _vibrateTimer?.cancel();
+    _vibrateTimer = null;
     await _player.stop();
-    Vibration.cancel();
   }
 }

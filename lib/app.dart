@@ -17,7 +17,7 @@ class DrowsinessApp extends StatelessWidget {
       title: 'ตรวจจับอาการหลับใน',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const DrivingDetectionScreen(),
+      home: const LoginScreen(),
     );
   }
 }
