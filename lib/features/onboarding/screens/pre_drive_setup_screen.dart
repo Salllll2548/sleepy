@@ -4,7 +4,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
 import 'face_scan_screen.dart';
 
-/// หน้า 2: ตั้งค่าก่อนเริ่มขับ — เปิด/ปิด 3 สวิตช์หลักก่อนเข้าสู่การสแกนหน้า
 class PreDriveSetupScreen extends StatefulWidget {
   const PreDriveSetupScreen({super.key});
 

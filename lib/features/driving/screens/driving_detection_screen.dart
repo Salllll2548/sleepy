@@ -8,8 +8,6 @@ import '../../../services/alert_service.dart';
 import '../../../services/face_detection_service.dart';
 import '../../../services/risk_score_service.dart';
 
-/// หน้า 7: จอเต็มพื้นหลังเข้ม วงแหวนแสดงคะแนนความตื่นตัว real-time
-/// ต่อกล้อง + FaceDetectionService + RiskScoreService ตัวจริงที่ทำไว้ก่อนหน้านี้
 class DrivingDetectionScreen extends StatefulWidget {
   const DrivingDetectionScreen({super.key});
 
@@ -26,13 +24,17 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
 
   RiskScoreState _state = RiskScoreState.initial();
   bool _isProcessingFrame = false;
-  final DateTime _startedAt = DateTime.now();
+
+  // บันทึกเวลาที่เริ่มเปิดหน้านี้ขับขี่
+  late final DateTime _startedAt;
 
   @override
   void initState() {
     super.initState();
+    _startedAt = DateTime.now();
     _initCamera();
     _riskScoreService.stream.listen((state) {
+      if (!mounted) return;
       setState(() => _state = state);
       if (state.isAlert) {
         _alertService.triggerAlert();
@@ -70,15 +72,63 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
   }
 
   void _endDrive() {
+    // คำนวณระยะเวลารวมตั้งแต่เริ่มขับจนกดปุ่มสิ้นสุด
+    final elapsed = DateTime.now().difference(_startedAt);
+
     final session = DriveSession(
       startedAt: _startedAt,
-      speedKmh: 0, // TODO: ต่อ GPS speed sensor จริง
-      distanceKm: 0, // TODO: ต่อ GPS จริง
-      elapsed: DateTime.now().difference(_startedAt),
-      currentRiskScore: _state.score,
-      alertnessScore: 100 - _state.score,
+      elapsed: elapsed,
     );
+
     Navigator.pop(context, session);
+  }
+
+  /// --------------------------------------------------
+  /// Widget แสดงกรอบกล้องสี่เหลี่ยมเล็กๆ มุมบนขวา
+  /// --------------------------------------------------
+  Widget _buildCameraPreview() {
+    // ถ้ากล้องยังโหลดไม่เสร็จ ให้โชว์กล่องดำ/ตัวโหลดหมุนๆ
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return Container(
+        width: 120,
+        height: 150,
+        decoration: BoxDecoration(
+          color: Colors.black26,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white70,
+          ),
+        ),
+      );
+    }
+
+    // ถ้ากล้องพร้อมแล้ว แสดงวิดีโอสดในกรอบสี่เหลี่ยมมุมมน
+    return Container(
+      width: 90,  // ความกว้างกรอบกล้อง
+      height: 120, // ความสูงกรอบกล้อง
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white54, width: 2), // ขอบกรอบสีขาว
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: AspectRatio(
+          aspectRatio: _cameraController!.value.aspectRatio,
+          child: CameraPreview(_cameraController!),
+        ),
+      ),
+    );
   }
 
   @override
@@ -100,14 +150,31 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              // ==========================================
+              // แถบบนสุด: ป้ายสถานะ (ซ้าย) + กรอบกล้อง (ขวา)
+              // ==========================================
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  _Pill(icon: Icons.camera_alt_outlined, label: 'AI ตรวจจับ'),
-                  _Pill(icon: Icons.bluetooth, label: 'BT เชื่อมต่อแล้ว'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      _Pill(icon: Icons.bluetooth, label: 'BT เชื่อมต่อแล้ว'),
+                      SizedBox(height: 6),
+                      _Pill(icon: Icons.camera_alt_outlined, label: 'AI กำลังตรวจจับ'),
+                    ],
+                  ),
+                  // กรอบกล้องมุมบนขวา
+                  _buildCameraPreview(),
                 ],
               ),
+
               const Spacer(),
+
+              // ==========================================
+              // วงแหวนแสดงคะแนนความตื่นตัว
+              // ==========================================
               SizedBox(
                 width: 260,
                 height: 260,
@@ -152,30 +219,11 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                   ],
                 ),
               ),
+
               const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Drowsiness Risk',
-                      style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text('${_state.score.toStringAsFixed(0)}/100',
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w600)),
-                ],
-              ),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: (_state.score / 100).clamp(0, 1),
-                  minHeight: 6,
-                  backgroundColor: Colors.white12,
-                  valueColor: AlwaysStoppedAnimation(
-                    _state.isAlert ? Colors.redAccent : AppColors.ringActive,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
+
+
+
               Text(
                 _state.isAlert
                     ? '● เสี่ยง • กรุณาหยุดพักรถ'
@@ -186,6 +234,10 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // ==========================================
+              // ปุ่มสิ้นสุดการขับ
+              // ==========================================
               PrimaryButton(
                 label: 'สิ้นสุดการขับ',
                 icon: Icons.stop_circle_outlined,

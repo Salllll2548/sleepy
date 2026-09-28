@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import '../../../core/constants/risk_levels.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/primary_button.dart';
 import '../../../models/drive_session_model.dart';
 import '../../driving/screens/driving_detection_screen.dart';
 
-/// หน้า 4 (ยังไม่เริ่มขับ — วงกลม "เริ่มต้น") และหน้า 5 (กำลังขับ — วงกลม "92")
-/// เป็นจอเดียวกัน ต่างกันแค่ state ภายใน จึงไม่แยกไฟล์
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -15,249 +15,348 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  DriveSession? _activeSession; // null = ยังไม่เริ่ม (หน้า 4), มีค่า = กำลังขับ (หน้า 5)
+  // =========================
+  // Firebase User Name
+  // =========================
 
-  Future<void> _startDriving() async {
-    // ไปหน้าตรวจจับระหว่างขับ (หน้า 7) แล้วรอผลทริปกลับมาแสดงผลที่นี่
-    final result = await Navigator.push<DriveSession>(
-      context,
-      MaterialPageRoute(builder: (_) => const DrivingDetectionScreen()),
-    );
-    if (result != null) {
-      setState(() => _activeSession = result);
+  String _userName = 'กำลังโหลด...';
+
+  // =========================
+  // Driving Session
+  // =========================
+
+  DriveSession? _lastSession;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserName();
+  }
+
+  // =========================
+  // Load Name From Firestore
+  // =========================
+
+  Future<void> _loadUserName() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+
+      setState(() {
+        _userName = 'ผู้ใช้';
+      });
+
+      return;
+    }
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (!mounted) return;
+
+      if (doc.exists) {
+        final data = doc.data();
+
+        final firstName = data?['firstName'] ?? '';
+        final lastName = data?['lastName'] ?? '';
+
+        final fullName = '$firstName $lastName'.trim();
+
+        setState(() {
+          _userName = fullName.isEmpty ? 'ผู้ใช้' : fullName;
+        });
+      } else {
+        // ถ้าไม่มีข้อมูลใน Firestore
+        setState(() {
+          _userName = user.displayName ?? 'ผู้ใช้';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      // ถ้าอ่าน Firestore ไม่สำเร็จ
+      // ใช้ชื่อจาก Firebase Authentication แทน
+      setState(() {
+        _userName = user.displayName ?? 'ผู้ใช้';
+      });
     }
   }
 
+  // =========================
+  // Start Driving
+  // =========================
+
+  Future<void> _saveSessionToFirestore(DriveSession session) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('sessions')
+          .add({
+        'startedAt': Timestamp.fromDate(session.startedAt),
+        'elapsedSeconds': session.elapsed.inSeconds,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print('บันทึกทริปลง Firestore สำเร็จ!');
+    } catch (e) {
+      print('เกิดข้อผิดพลาดในการบันทึกทริป: $e');
+    }
+  }
+
+  // 2. เรียกใช้ใน _startDriving
+  Future<void> _startDriving() async {
+    final result = await Navigator.push<DriveSession>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const DrivingDetectionScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      setState(() {
+        _lastSession = result;
+      });
+
+      // 💡 บันทึกข้อมูลทริปลง Firestore ทันทีที่ขับเสร็จ
+      await _saveSessionToFirestore(result);
+
+      print('ขับรถเสร็จสิ้น: ${_lastSession?.elapsedLabel}');
+    }
+  }
+  // =========================
+  // Build
+  // =========================
+
   @override
   Widget build(BuildContext context) {
-    final session = _activeSession;
-    final isActive = session != null;
-    final alertnessScore = session?.alertnessScore ?? 0;
-    final riskScore = session?.currentRiskScore ?? 15; // ค่าเริ่มต้นตามดีไซน์
-
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('สวัสดี คุณแนท',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-            const Text('การเดินทางของคุณ',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            // =========================
+            // User Name
+            // =========================
+            Text(
+              'สวัสดี $_userName',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textMuted,
+              ),
+            ),
           ],
         ),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.notifications_none),
+            child: Icon(
+              Icons.notifications_none,
+            ),
           ),
         ],
       ),
+
+      // =========================
+      // Body
+      // =========================
+
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // =========================
+          // Main Status (ปุ่มเริ่มต้นขับขี่)
+          // =========================
+
           _MainStatusCard(
-            isActive: isActive,
-            alertnessScore: alertnessScore,
-            riskScore: riskScore,
-            onTap: isActive ? null : _startDriving,
+            onTap: _startDriving,
           ),
+
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.speed,
-                  value: isActive ? session.speedKmh.toStringAsFixed(0) : '--',
-                  unit: 'กม./ชม.',
-                  label: 'ความเร็วเฉลี่ย',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.route,
-                  value: isActive ? session.distanceKm.toStringAsFixed(1) : '--',
-                  unit: 'กม.',
-                  label: 'ระยะทาง',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  icon: Icons.access_time,
-                  value: isActive ? '${session.elapsed.inMinutes}' : '--',
-                  unit: 'นาที',
-                  label: 'เวลาขับขี่',
-                ),
-              ),
-            ],
+
+          // =========================
+          // Risk Level
+          // =========================
+
+          const Text(
+            'ระดับความเสี่ยง (Drowsiness Risk)',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          const SizedBox(height: 20),
-          const Text('ระดับความเสี่ยง (Drowsiness Risk)',
-              style: TextStyle(fontWeight: FontWeight.w600)),
+
           const SizedBox(height: 10),
+
           Row(
             children: [
               for (final info in RiskLevels.all)
-                Expanded(child: _RiskLevelChip(info: info)),
+                Expanded(
+                  child: _RiskLevelChip(
+                    info: info,
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 20),
-          if (!isActive)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.creamButton,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: const [
-                  Icon(Icons.self_improvement, color: AppColors.creamButtonText),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'พักสติเมื่อรู้สึกล้า',
-                      style: TextStyle(
-                        color: AppColors.creamButtonText,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
   }
 }
 
+// ============================================================
+// Main Status Card (ปุ่มกดเริ่มต้น)
+// ============================================================
+
 class _MainStatusCard extends StatelessWidget {
-  final bool isActive;
-  final double alertnessScore;
-  final double riskScore;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   const _MainStatusCard({
-    required this.isActive,
-    required this.alertnessScore,
-    required this.riskScore,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.darkCard,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _StatusPill(
-                    icon: Icons.camera_alt_outlined, label: 'AI ตรวจจับ'),
-                _StatusPill(
-                    icon: Icons.bluetooth, label: 'BT เชื่อมต่อแล้ว'),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: 140,
-              height: 140,
-              child: Stack(
-                alignment: Alignment.center,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+      decoration: BoxDecoration(
+        color: const Color(0xFF133440), // สีพื้นหลังการ์ดเข้ม
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        children: [
+          // 1. สถานะ Bluetooth มุมขวาบน
+          Align(
+            alignment: Alignment.topRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: 140,
-                    height: 140,
-                    child: CircularProgressIndicator(
-                      value: isActive ? (alertnessScore / 100).clamp(0, 1) : 0.15,
-                      strokeWidth: 8,
-                      backgroundColor: Colors.white24,
-                      valueColor:
-                          const AlwaysStoppedAnimation(AppColors.ringActive),
+                  Icon(Icons.bluetooth, size: 14, color: Color(0xFF133440)),
+                  SizedBox(width: 4),
+                  Text(
+                    'BT เชื่อมต่อแล้ว',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF133440),
                     ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isActive)
-                        Text(
-                          alertnessScore.toStringAsFixed(0),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      else
-                        const Text(
-                          'เริ่มต้น',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      const Text('ความตื่นตัว',
-                          style: TextStyle(color: Colors.white70, fontSize: 11)),
-                    ],
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Drowsiness Risk',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
-                Text('${riskScore.toStringAsFixed(0)}/100',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w600)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: (riskScore / 100).clamp(0, 1),
-                minHeight: 6,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation(AppColors.ringActive),
+          ),
+
+          const SizedBox(height: 10),
+
+          // 2. ปุ่มวงกลมกดเริ่มต้น (กดได้ทั้งวงกลม)
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF98D9CC), // สีเขียวพาสเทลวงกลม
+                border: Border.all(color: Colors.white, width: 3), // ขอบขาว
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0xFF516F68), // สีเงามืดโทนเดียวกับการ์ด
+                    offset: Offset(0, 8), // ดันเงาลงด้านล่างอย่างเดียว 8px
+                    blurRadius:
+                        0, // ค่าเบลอเป็น 0 เพื่อให้ขอบเงาคมเป็นมิติ 3D ด้านล่าง
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'PRESS TO',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF133440),
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // แคปซูลคำว่า Start!
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF026D45), // สีเขียวเข้ม
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Start!',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF67EF9B), // สีเขียวสว่าง
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  const Text(
+                    'กดเพื่อเริ่มตรวจจับ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF133440),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('● ปกติ • ขับได้อย่างปลอดภัย',
-                  style: TextStyle(color: AppColors.ringActive, fontSize: 11)),
-            ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 10),
+        ],
       ),
     );
   }
 }
 
+// ============================================================
+// Status Pill
+// ============================================================
+
 class _StatusPill extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const _StatusPill({required this.icon, required this.label});
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: Colors.white12,
         borderRadius: BorderRadius.circular(20),
@@ -265,74 +364,71 @@ class _StatusPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: Colors.white),
+          Icon(
+            icon,
+            size: 14,
+            color: Colors.white,
+          ),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  final IconData icon;
-  final String value;
-  final String unit;
-  final String label;
-
-  const _MetricCard({
-    required this.icon,
-    required this.value,
-    required this.unit,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 18, color: AppColors.primary),
-          const SizedBox(height: 6),
-          Text('$value $unit',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          Text(label,
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
-        ],
-      ),
-    );
-  }
-}
+// ============================================================
+// Risk Level Chip
+// ============================================================
 
 class _RiskLevelChip extends StatelessWidget {
   final RiskLevelInfo info;
 
-  const _RiskLevelChip({required this.info});
+  const _RiskLevelChip({
+    required this.info,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 3,
+      ),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(
+          vertical: 10,
+        ),
         decoration: BoxDecoration(
           color: info.color.withOpacity(0.12),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
           children: [
-            CircleAvatar(radius: 4, backgroundColor: info.color),
+            CircleAvatar(
+              radius: 4,
+              backgroundColor: info.color,
+            ),
             const SizedBox(height: 4),
-            Text(info.rangeLabel,
-                style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700, color: info.color)),
-            Text(info.nameLabel, style: const TextStyle(fontSize: 9)),
+            Text(
+              info.rangeLabel,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: info.color,
+              ),
+            ),
+            Text(
+              info.nameLabel,
+              style: const TextStyle(
+                fontSize: 9,
+              ),
+            ),
           ],
         ),
       ),

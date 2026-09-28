@@ -1,31 +1,21 @@
 /// ข้อมูลทริปการขับขี่หนึ่งครั้ง ใช้แสดงในหน้า Home (ความเร็ว/ระยะทาง/เวลา)
 /// และหน้าสถิติ (กราฟรายวัน + เหตุการณ์ล่าสุด)
 class DriveSession {
-  final DateTime startedAt;
-  final double speedKmh;
-  final double distanceKm;
-  final Duration elapsed;
-  final double currentRiskScore; // 0-100
-  final double alertnessScore; // 100 - risk โดยประมาณ แสดงในวงแหวน
+  final Duration elapsed;   // เวลารวมที่ใช้ขับขี่ (เช่น 15 นาที 30 วินาที)
+  final DateTime startedAt; // เวลาที่เริ่มขับขี่
 
-  const DriveSession({
-    required this.startedAt,
-    required this.speedKmh,
-    required this.distanceKm,
+  DriveSession({
     required this.elapsed,
-    required this.currentRiskScore,
-    required this.alertnessScore,
+    required this.startedAt,
   });
 
+  /// สถานะเริ่มต้น (ยังไม่ได้เริ่มขับ)
   factory DriveSession.notStarted() => DriveSession(
         startedAt: DateTime.now(),
-        speedKmh: 0,
-        distanceKm: 0,
         elapsed: Duration.zero,
-        currentRiskScore: 0,
-        alertnessScore: 0,
       );
 
+  /// ดึงข้อความแสดงจำนวนนาทีสำหรับนำไปโชว์ใน UI
   String get elapsedLabel {
     final minutes = elapsed.inMinutes;
     return '$minutes นาที';

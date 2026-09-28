@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../models/drive_session_model.dart';
 import '../../../services/drive_stats_service.dart';
 
+/// หน้าแสดงสถิติการขับขี่
 class StatsScreen extends StatefulWidget {
   const StatsScreen({super.key});
 
@@ -21,13 +22,14 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadData();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadData() async {
     final weekly = await _statsService.getWeeklyStats();
     final events = await _statsService.getRecentEvents();
     final avg = await _statsService.getAverageAlertnessPercent();
+
     if (!mounted) return;
     setState(() {
       _weekly = weekly;
@@ -47,15 +49,17 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('สถิติการขับขี่')),
+      appBar: AppBar(
+        title: const Text('สถิติการขับขี่'),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text(
+                const Text(
                   '7 วันที่ผ่านมา',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 Container(
@@ -74,17 +78,17 @@ class _StatsScreenState extends State<StatsScreen> {
                           const Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('คะแนนความตื่นตัวเฉลี่ยรายวัน',
+                              Text('เวลาขับขี่เฉลี่ยรายวัน',
                                   style: TextStyle(fontSize: 12)),
-                              Text('AI วิเคราะห์จากทุกทริป (0=แย่มาก, 100=ตื่นตัว)',
+                              Text('คำนวณจากทริปในสัปดาห์นี้',
                                   style: TextStyle(
                                       fontSize: 10, color: AppColors.textMuted)),
                             ],
                           ),
                           Text(
-                            '${_averagePercent.toStringAsFixed(0)}%',
+                            '${_averagePercent.toStringAsFixed(0)} นาที',
                             style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.primary),
                           ),
@@ -149,17 +153,21 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('เหตุการณ์ล่าสุด',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text('ดูทั้งหมด',
-                        style: TextStyle(color: AppColors.primary, fontSize: 12)),
-                  ],
-                ),
+                const Text('ประวัติการขับขี่ล่าสุด',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
-                for (final event in _events) _EventCard(event: event),
+                if (_events.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(
+                      child: Text(
+                        'ยังไม่มีประวัติการขับขี่',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ),
+                  )
+                else
+                  for (final event in _events) _EventCard(event: event),
               ],
             ),
     );

@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
 
   # กล้อง
   camera: ^0.10.6
@@ -30,6 +31,10 @@ dependencies:
 
   # กราฟแท่งสถิติรายวัน (หน้าสถิติการขับขี่)
   fl_chart: ^0.68.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+  google_sign_in: ^7.2.0
 
   ultralytics_yolo: ^0.6.15
 
