@@ -66,5 +66,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+<!-- สิทธิ์สำหรับกล้อง -->
+    <key>NSCameraUsageDescription</key>
+    <string>แอปพลิเคชันต้องการเข้าถึงกล้องเพื่อใช้ AI ตรวจจับความง่วงและวิเคราะห์ใบหน้าขณะขับขี่</string>
+
+    <!-- สิทธิ์สำหรับ Bluetooth -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>แอปพลิเคชันต้องการเชื่อมต่อ Bluetooth เพื่อส่งเสียงแจ้งเตือนความเสี่ยงไปยังลำโพงรถยนต์</string>
+
 </dict>
 </plist>

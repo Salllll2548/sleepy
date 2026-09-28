@@ -17,8 +17,15 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
   bool _bluetoothSpeakerEnabled = true;
 
   Future<void> _onContinue() async {
+    // 1. ตรวจสอบสิทธิ์กล้อง
     if (_cameraAiEnabled) {
       final status = await Permission.camera.request();
+      if (status.isPermanentlyDenied) {
+        if (!mounted) return;
+        await openAppSettings();
+        return;
+      }
+
       if (!status.isGranted) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -27,6 +34,20 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
         return;
       }
     }
+
+    // 2. ตรวจสอบสิทธิ์ Bluetooth
+  if (_bluetoothSpeakerEnabled) {
+    // สำหรับ Android 12 ขึ้นไป จำเป็นต้องขอ bluetoothConnect
+    final bluetoothStatus = await Permission.bluetoothConnect.request();
+    
+    if (!bluetoothStatus.isGranted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาอนุญาต Bluetooth เพื่อเชื่อมต่อลำโพง')),
+      );
+    }
+  }
+
     if (!mounted) return;
     Navigator.push(
       context,
@@ -50,7 +71,7 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'พร้อมดูแลคุณระหว่างทาง',
+                'ขออนุญาตใช้สิทธิ์',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 6),
@@ -61,8 +82,8 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
                 style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
               const SizedBox(height: 20),
-              const _StepRow(),
-              const SizedBox(height: 24),
+              // const _StepRow(),
+              // const SizedBox(height: 24),
               _SettingToggleCard(
                 icon: Icons.face_retouching_natural,
                 title: 'กล้อง + AI ตรวจจับใบหน้า',
@@ -106,32 +127,32 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
   }
 }
 
-class _StepRow extends StatelessWidget {
-  const _StepRow();
+// class _StepRow extends StatelessWidget {
+//   const _StepRow();
 
-  @override
-  Widget build(BuildContext context) {
-    const steps = [
-      (Icons.bluetooth, 'Bluetooth'),
-      (Icons.camera_alt_outlined, 'กล้อง AI'),
-      (Icons.notifications_none, 'เตือนภัย'),
-      (Icons.schedule, 'กลับบ้าน'),
-    ];
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        for (final step in steps)
-          Column(
-            children: [
-              Icon(step.$1, size: 20, color: AppColors.primary),
-              const SizedBox(height: 4),
-              Text(step.$2, style: const TextStyle(fontSize: 10)),
-            ],
-          ),
-      ],
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     const steps = [
+//       (Icons.bluetooth, 'Bluetooth'),
+//       (Icons.camera_alt_outlined, 'กล้อง AI'),
+//       (Icons.notifications_none, 'เตือนภัย'),
+//       (Icons.schedule, 'กลับบ้าน'),
+//     ];
+//     return Row(
+//       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//       children: [
+//         for (final step in steps)
+//           Column(
+//             children: [
+//               Icon(step.$1, size: 20, color: AppColors.primary),
+//               const SizedBox(height: 4),
+//               Text(step.$2, style: const TextStyle(fontSize: 10)),
+//             ],
+//           ),
+//       ],
+//     );
+//   }
+// }
 
 class _SettingToggleCard extends StatelessWidget {
   final IconData icon;
