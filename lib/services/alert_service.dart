@@ -16,7 +16,7 @@ class AlertService {
     await NotificationService().showDrowsinessAlert();
 
     await _player.setReleaseMode(ReleaseMode.loop);
-    await _player.play(AssetSource('sounds/alarm.mp3'));
+    await _player.play(AssetSource('sounds/hrk.mp3'));
 
     // สั่นซ้ำทุก 700 ms จนกว่าจะเรียก stopAlert()
     HapticFeedback.vibrate();

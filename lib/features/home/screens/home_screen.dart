@@ -226,16 +226,84 @@ class _MainStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
       decoration: BoxDecoration(
         color: const Color(0xFF133440), // สีพื้นหลังการ์ดเข้ม
         borderRadius: BorderRadius.circular(28),
       ),
-      child: Column(
+      child: Stack(
         children: [
-          // 1. สถานะ Bluetooth มุมขวาบน
-          Align(
-            alignment: Alignment.topRight,
+          // 🟢 1. ปุ่มวงกลมตรงกลาง (ใส่ Padding รอบปุ่มเพื่อกำหนดความสูงการ์ดแทน)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+            child: Center(
+              child: GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  width: 200,
+                  height: 250,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF98D9CC), // สีเขียวพาสเทลวงกลม
+                    border: Border.all(color: Colors.white, width: 3), // ขอบขาว
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0xFF516F68),
+                        offset: Offset(0, 8),
+                        blurRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'PRESS TO',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF133440),
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF026D45),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Start!',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF67EF9B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'กดเพื่อเริ่มตรวจจับ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF133440),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 🟢 2. สถานะ Bluetooth ลอยชิดขอบบนขวาอย่างอิสระ
+          Positioned(
+            top: 16,   // 👈 ระยะห่างจากขอบบนของสี่เหลี่ยมเข้ม (ปรับเพิ่ม/ลดได้ตามต้องการ)
+            right: 16, // 👈 ระยะห่างจากขอบขวา
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -259,78 +327,6 @@ class _MainStatusCard extends StatelessWidget {
               ),
             ),
           ),
-
-          const SizedBox(height: 10),
-
-          // 2. ปุ่มวงกลมกดเริ่มต้น (กดได้ทั้งวงกลม)
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF98D9CC), // สีเขียวพาสเทลวงกลม
-                border: Border.all(color: Colors.white, width: 3), // ขอบขาว
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0xFF516F68), // สีเงามืดโทนเดียวกับการ์ด
-                    offset: Offset(0, 8), // ดันเงาลงด้านล่างอย่างเดียว 8px
-                    blurRadius:
-                        0, // ค่าเบลอเป็น 0 เพื่อให้ขอบเงาคมเป็นมิติ 3D ด้านล่าง
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'PRESS TO',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF133440),
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-
-                  // แคปซูลคำว่า Start!
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF026D45), // สีเขียวเข้ม
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Start!',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF67EF9B), // สีเขียวสว่าง
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  const Text(
-                    'กดเพื่อเริ่มตรวจจับ',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF133440),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
         ],
       ),
     );

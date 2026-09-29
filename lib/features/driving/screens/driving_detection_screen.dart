@@ -1,5 +1,7 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../models/drive_session_model.dart';
@@ -12,8 +14,7 @@ class DrivingDetectionScreen extends StatefulWidget {
   const DrivingDetectionScreen({super.key});
 
   @override
-  State<DrivingDetectionScreen> createState() =>
-      _DrivingDetectionScreenState();
+  State<DrivingDetectionScreen> createState() => _DrivingDetectionScreenState();
 }
 
 class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
@@ -44,6 +45,36 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
     });
   }
 
+  Future<void> saveDriveSession({
+    required DateTime startTime,
+    required int elapsedSeconds,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    // 1. เช็กว่าล็อกอินอยู่หรือไม่
+    if (user == null) {
+      print('⚠️ บันทึกไม่ได้: ผู้ใช้ยังไม่ได้ Login ในระบบ FirebaseAuth');
+      return;
+    }
+
+    try {
+      // 2. สร้าง/เพิ่มข้อมูลลงใน collection: users/{uid}/sessions
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('sessions')
+          .add({
+        'startedAt': Timestamp.fromDate(startTime),
+        'elapsedSeconds': elapsedSeconds,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ บันทึกประวัติการขับลง Firebase สำเร็จแล้ว!');
+    } catch (e) {
+      print('❌ เกิดข้อผิดพลาดในการบันทึก: $e');
+    }
+  }
+
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
     final frontCamera = cameras.firstWhere(
@@ -71,8 +102,8 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
     });
   }
 
-  void _endDrive() {
-    // คำนวณระยะเวลารวมตั้งแต่เริ่มขับจนกดปุ่มสิ้นสุด
+Future<void> _endDrive() async {
+    // 1. คำนวณระยะเวลารวม (โค้ดเดิมของคุณ)
     final elapsed = DateTime.now().difference(_startedAt);
 
     final session = DriveSession(
@@ -80,6 +111,29 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
       elapsed: elapsed,
     );
 
+    // 2. บันทึกลง Firebase Firestore (ส่วนที่เพิ่มใหม่)
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('sessions')
+            .add({
+          'startedAt': Timestamp.fromDate(_startedAt),
+          'elapsedSeconds': elapsed.inSeconds, // ดึงจำนวนวินาทีจาก elapsed เดิมของคุณ
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        print('✅ บันทึกประวัติการขับลง Firestore สำเร็จ!');
+      } catch (e) {
+        print('❌ เกิดข้อผิดพลาดในการบันทึก: $e');
+      }
+    } else {
+      print('⚠️ ไม่พบข้อมูลผู้ใช้ (ยังไม่ได้ Login ในระบบ FirebaseAuth)');
+    }
+
+    // 3. ปิดหน้าจอและส่งค่า session กลับไป (โค้ดเดิมของคุณ)
+    if (!mounted) return;
     Navigator.pop(context, session);
   }
 
@@ -108,7 +162,7 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
 
     // ถ้ากล้องพร้อมแล้ว แสดงวิดีโอสดในกรอบสี่เหลี่ยมมุมมน
     return Container(
-      width: 90,  // ความกว้างกรอบกล้อง
+      width: 90, // ความกว้างกรอบกล้อง
       height: 120, // ความสูงกรอบกล้อง
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -162,7 +216,9 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                     children: const [
                       _Pill(icon: Icons.bluetooth, label: 'BT เชื่อมต่อแล้ว'),
                       SizedBox(height: 6),
-                      _Pill(icon: Icons.camera_alt_outlined, label: 'AI กำลังตรวจจับ'),
+                      _Pill(
+                          icon: Icons.camera_alt_outlined,
+                          label: 'AI กำลังตรวจจับ'),
                     ],
                   ),
                   // กรอบกล้องมุมบนขวา
@@ -188,8 +244,8 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                         value: (alertness / 100).toDouble(),
                         strokeWidth: 10,
                         backgroundColor: Colors.white12,
-                        valueColor: const AlwaysStoppedAnimation(
-                            AppColors.ringActive),
+                        valueColor:
+                            const AlwaysStoppedAnimation(AppColors.ringActive),
                       ),
                     ),
                     Column(
@@ -222,14 +278,13 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
 
               const Spacer(),
 
-
-
               Text(
                 _state.isAlert
                     ? '● เสี่ยง • กรุณาหยุดพักรถ'
                     : '● ปกติ • ขับได้อย่างปลอดภัย',
                 style: TextStyle(
-                  color: _state.isAlert ? Colors.redAccent : AppColors.ringActive,
+                  color:
+                      _state.isAlert ? Colors.redAccent : AppColors.ringActive,
                   fontSize: 12,
                 ),
               ),
@@ -270,7 +325,8 @@ class _Pill extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: Colors.white),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(label,
+              style: const TextStyle(color: Colors.white, fontSize: 11)),
         ],
       ),
     );
