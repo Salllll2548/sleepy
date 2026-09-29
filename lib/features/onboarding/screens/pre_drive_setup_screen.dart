@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
 import 'face_scan_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class PreDriveSetupScreen extends StatefulWidget {
   const PreDriveSetupScreen({super.key});
@@ -17,8 +18,10 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
   bool _bluetoothSpeakerEnabled = true;
 
   Future<void> _onContinue() async {
+          print('--- กำลังจะขอสิทธิ์กล้อง ---');
     // 1. ตรวจสอบสิทธิ์กล้อง
     if (_cameraAiEnabled) {
+      print('>>> 2. เข้าเงื่อนไข cameraAiEnabled <<<');
       final status = await Permission.camera.request();
       if (status.isPermanentlyDenied) {
         if (!mounted) return;
@@ -89,7 +92,10 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
                 title: 'กล้อง + AI ตรวจจับใบหน้า',
                 subtitle: 'วิเคราะห์ดวงตา คิ้ว ริมฝีปาก และเอียงศีรษะ',
                 value: _cameraAiEnabled,
-                onChanged: (v) => setState(() => _cameraAiEnabled = v),
+                onChanged: (v) {
+                  setState(() => _cameraAiEnabled = v);
+                  print('>>> สถานะกล้อง AI ถูกเปลี่ยนเป็น: $v <<<'); // เพิ่มบรรทัดนี้
+                },
               ),
               const SizedBox(height: 12),
               _SettingToggleCard(
@@ -97,7 +103,10 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
                 title: 'การแจ้งเตือน',
                 subtitle: 'แจ้งเตือนทันทีเมื่อคะแนนความเสี่ยง ≥ 30',
                 value: _alertsEnabled,
-                onChanged: (v) => setState(() => _alertsEnabled = v),
+                onChanged: (v) {
+                  setState(() => _alertsEnabled = v);
+                  print('>>> สถานะการแจ้งเตือน ถูกเปลี่ยนเป็น: $v <<<'); // เพิ่มบรรทัดนี้
+                },
               ),
               const SizedBox(height: 12),
               _SettingToggleCard(
@@ -108,10 +117,29 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
                 onChanged: (v) => setState(() => _bluetoothSpeakerEnabled = v),
               ),
               const Spacer(),
-              PrimaryButton(
-                label: 'ตรวจสอบใบหน้าและเริ่มใช้งาน',
-                icon: Icons.face,
-                onPressed: _onContinue,
+              // PrimaryButton(
+              //   label: 'ตรวจสอบใบหน้าและเริ่มใช้งาน',
+              //   icon: Icons.face,
+              //   onPressed: _onContinue,
+              // ),
+              ElevatedButton(
+                onPressed: () {
+                  print('>>> กดปุ่มแล้ว <<<'); // เช็คว่าปุ่มกดติดไหม
+
+                  if (kIsWeb) {
+                    // ถ้ารันบนเว็บ (Chrome) ให้ข้ามไปหน้าสแกนหน้าเลย
+                    print('>>> รันบน Web: ข้ามการเช็ค Permission <<<');
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FaceScanScreen()),
+                    );
+                  } else {
+                    // ถ้ารันบนมือถือ ค่อยเรียกใช้ระบบเช็คสิทธิ์ที่คุณเขียนไว้
+                    print('>>> รันบน Mobile: เริ่มเช็ค Permission <<<');
+                    _onContinue(); 
+                  }
+                },
+                child: const Text('ทดสอบกดปุ่มตรงนี้'),
               ),
               const SizedBox(height: 8),
               const Text(
