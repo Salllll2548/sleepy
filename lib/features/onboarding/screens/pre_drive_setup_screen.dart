@@ -14,7 +14,6 @@ class PreDriveSetupScreen extends StatefulWidget {
 class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
   bool _cameraAiEnabled = true;
   bool _alertsEnabled = true;
-  bool _bluetoothSpeakerEnabled = true;
 
   Future<void> _onContinue() async {
     if (_cameraAiEnabled) {
@@ -24,7 +23,7 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
         await openAppSettings();
         return;
       }
-      
+
       if (!status.isGranted) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -33,18 +32,6 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
         return;
       }
     }
-
-   if (_bluetoothSpeakerEnabled) {
-    // สำหรับ Android 12 ขึ้นไป จำเป็นต้องขอ bluetoothConnect
-    final bluetoothStatus = await Permission.bluetoothConnect.request();
-
-    if (!bluetoothStatus.isGranted) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('กรุณาอนุญาต Bluetooth เพื่อเชื่อมต่อลำโพง')),
-      );
-    }
-  }
 
     if (!mounted) return;
     Navigator.push(
@@ -74,14 +61,11 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'เชื่อมต่อ Bluetooth → เปิดกล้อง → AI ตรวจจับความง่วง → '
-                'แจ้งเตือนผ่านลำโพงรถ',
+                'เปิดกล้อง → AI ตรวจจับความง่วง → แจ้งเตือนผ่านลำโพงหรือหูฟัง',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
               const SizedBox(height: 20),
-              //const _StepRow(),
-              //const SizedBox(height: 24),
               _SettingToggleCard(
                 icon: Icons.face_retouching_natural,
                 title: 'กล้อง + AI ตรวจจับใบหน้า',
@@ -93,17 +77,9 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
               _SettingToggleCard(
                 icon: Icons.notifications_active_outlined,
                 title: 'การแจ้งเตือน',
-                subtitle: 'แจ้งเตือนทันทีเมื่อคะแนนความเสี่ยง ≥ 30',
+                subtitle: 'แจ้งเตือนทันทีเมื่อตรวจพบความง่วง',
                 value: _alertsEnabled,
                 onChanged: (v) => setState(() => _alertsEnabled = v),
-              ),
-              const SizedBox(height: 12),
-              _SettingToggleCard(
-                icon: Icons.bluetooth,
-                title: 'Bluetooth → ลำโพงรถ / หูฟัง',
-                subtitle: 'ส่ง Text-to-Speech และเสียงเตือนผ่าน Bluetooth Audio',
-                value: _bluetoothSpeakerEnabled,
-                onChanged: (v) => setState(() => _bluetoothSpeakerEnabled = v),
               ),
               const Spacer(),
               PrimaryButton(
@@ -124,9 +100,6 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
     );
   }
 }
-
-//class _StepRow extends StatelessWidget {
-//  const _StepRow();
 
 class _SettingToggleCard extends StatelessWidget {
   final IconData icon;

@@ -2,6 +2,9 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:simple_pip_mode/pip_widget.dart';
+import 'package:simple_pip_mode/simple_pip.dart';
+
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../models/drive_session_model.dart';
@@ -45,36 +48,6 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
     });
   }
 
-  Future<void> saveDriveSession({
-    required DateTime startTime,
-    required int elapsedSeconds,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-
-    // 1. เช็กว่าล็อกอินอยู่หรือไม่
-    if (user == null) {
-      print('⚠️ บันทึกไม่ได้: ผู้ใช้ยังไม่ได้ Login ในระบบ FirebaseAuth');
-      return;
-    }
-
-    try {
-      // 2. สร้าง/เพิ่มข้อมูลลงใน collection: users/{uid}/sessions
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('sessions')
-          .add({
-        'startedAt': Timestamp.fromDate(startTime),
-        'elapsedSeconds': elapsedSeconds,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      print('✅ บันทึกประวัติการขับลง Firebase สำเร็จแล้ว!');
-    } catch (e) {
-      print('❌ เกิดข้อผิดพลาดในการบันทึก: $e');
-    }
-  }
-
   Future<void> _initCamera() async {
     final cameras = await availableCameras();
     final frontCamera = cameras.firstWhere(
@@ -102,8 +75,7 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
     });
   }
 
-Future<void> _endDrive() async {
-    // 1. คำนวณระยะเวลารวม (โค้ดเดิมของคุณ)
+  Future<void> _endDrive() async {
     final elapsed = DateTime.now().difference(_startedAt);
 
     final session = DriveSession(
@@ -111,7 +83,7 @@ Future<void> _endDrive() async {
       elapsed: elapsed,
     );
 
-    // 2. บันทึกลง Firebase Firestore (ส่วนที่เพิ่มใหม่)
+    // บันทึกลง Firebase Firestore
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
@@ -121,7 +93,7 @@ Future<void> _endDrive() async {
             .collection('sessions')
             .add({
           'startedAt': Timestamp.fromDate(_startedAt),
-          'elapsedSeconds': elapsed.inSeconds, // ดึงจำนวนวินาทีจาก elapsed เดิมของคุณ
+          'elapsedSeconds': elapsed.inSeconds,
           'createdAt': FieldValue.serverTimestamp(),
         });
         print('✅ บันทึกประวัติการขับลง Firestore สำเร็จ!');
@@ -132,7 +104,6 @@ Future<void> _endDrive() async {
       print('⚠️ ไม่พบข้อมูลผู้ใช้ (ยังไม่ได้ Login ในระบบ FirebaseAuth)');
     }
 
-    // 3. ปิดหน้าจอและส่งค่า session กลับไป (โค้ดเดิมของคุณ)
     if (!mounted) return;
     Navigator.pop(context, session);
   }
@@ -141,7 +112,6 @@ Future<void> _endDrive() async {
   /// Widget แสดงกรอบกล้องสี่เหลี่ยมเล็กๆ มุมบนขวา
   /// --------------------------------------------------
   Widget _buildCameraPreview() {
-    // ถ้ากล้องยังโหลดไม่เสร็จ ให้โชว์กล่องดำ/ตัวโหลดหมุนๆ
     if (_cameraController == null || !_cameraController!.value.isInitialized) {
       return Container(
         width: 120,
@@ -160,13 +130,12 @@ Future<void> _endDrive() async {
       );
     }
 
-    // ถ้ากล้องพร้อมแล้ว แสดงวิดีโอสดในกรอบสี่เหลี่ยมมุมมน
     return Container(
-      width: 90, // ความกว้างกรอบกล้อง
-      height: 120, // ความสูงกรอบกล้อง
+      width: 90,
+      height: 120,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white54, width: 2), // ขอบกรอบสีขาว
+        border: Border.all(color: Colors.white54, width: 2),
         boxShadow: const [
           BoxShadow(
             color: Colors.black38,
@@ -197,108 +166,197 @@ Future<void> _endDrive() async {
   @override
   Widget build(BuildContext context) {
     final alertness = (100 - _state.score).clamp(0, 100);
-    return Scaffold(
-      backgroundColor: AppColors.darkCard,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              // ==========================================
-              // แถบบนสุด: ป้ายสถานะ (ซ้าย) + กรอบกล้อง (ขวา)
-              // ==========================================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      _Pill(icon: Icons.bluetooth, label: 'BT เชื่อมต่อแล้ว'),
-                      SizedBox(height: 6),
-                      _Pill(
-                          icon: Icons.camera_alt_outlined,
-                          label: 'AI กำลังตรวจจับ'),
-                    ],
-                  ),
-                  // กรอบกล้องมุมบนขวา
-                  _buildCameraPreview(),
-                ],
-              ),
 
-              const Spacer(),
-
-              // ==========================================
-              // วงแหวนแสดงคะแนนความตื่นตัว
-              // ==========================================
-              SizedBox(
-                width: 260,
-                height: 260,
+    return PipWidget(
+      // 🟢 ลบ autoPip: true ออกแล้วเริ่มที่ pipChild ได้เลย
+      pipChild: Scaffold(
+        backgroundColor: AppColors.darkCard,
+        body: SafeArea(
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: 130,
+                height: 130,
                 child: Stack(
-                  alignment: Alignment.center,
                   children: [
-                    SizedBox(
-                      width: 260,
-                      height: 260,
-                      child: CircularProgressIndicator(
-                        value: (alertness / 100).toDouble(),
-                        strokeWidth: 10,
-                        backgroundColor: Colors.white12,
-                        valueColor:
-                            const AlwaysStoppedAnimation(AppColors.ringActive),
+                    // 1. จุดสีแดงมุมบนซ้าย (แสดงสถานะทำงาน/บันทึก)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.remove_red_eye_outlined,
-                            color: Colors.white70, size: 20),
-                        const SizedBox(height: 6),
-                        Text(
-                          alertness.toStringAsFixed(0),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 56,
-                            fontWeight: FontWeight.bold,
-                          ),
+
+                    // 2. วงแหวนและเลขคะแนนตรงกลาง
+                    Center(
+                      child: SizedBox(
+                        width: 85,
+                        height: 85,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // วงแหวนโหลด
+                            SizedBox(
+                              width: 85,
+                              height: 85,
+                              child: CircularProgressIndicator(
+                                value: (alertness / 100).toDouble(),
+                                strokeWidth: 5,
+                                backgroundColor: Colors.white12,
+                                valueColor: AlwaysStoppedAnimation(
+                                  _state.isAlert
+                                      ? Colors.redAccent
+                                      : AppColors.ringActive,
+                                ),
+                              ),
+                            ),
+                            // ตัวเลขคะแนน + ข้อความสถานะ
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  alertness.toStringAsFixed(0),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  _state.isAlert ? 'ระวัง!' : 'okay',
+                                  style: TextStyle(
+                                    color: _state.isAlert
+                                        ? Colors.redAccent
+                                        : Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        Text(
-                          _state.isAlert ? 'ระวัง!' : 'okay',
-                          style: TextStyle(
-                            color: _state.isAlert
-                                ? Colors.redAccent
-                                : Colors.white70,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
 
-              const Spacer(),
-
-              Text(
-                _state.isAlert
-                    ? '● เสี่ยง • กรุณาหยุดพักรถ'
-                    : '● ปกติ • ขับได้อย่างปลอดภัย',
-                style: TextStyle(
-                  color:
-                      _state.isAlert ? Colors.redAccent : AppColors.ringActive,
-                  fontSize: 12,
+      child: Scaffold(
+        backgroundColor: AppColors.darkCard,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const _Pill(
+                          icon: Icons.camera_alt_outlined,
+                          label: 'AI กำลังตรวจจับ',
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.picture_in_picture_alt,
+                            color: Colors.white70,
+                            size: 30,
+                          ),
+                          onPressed: () => SimplePip().enterPipMode(
+                            aspectRatio: (
+                              1,
+                              1
+                            ), // กำหนดความกว้าง : ความสูง เป็น 1:1
+                          ),
+                        )
+                      ],
+                    ),
+                    _buildCameraPreview(),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 24),
-
-              // ==========================================
-              // ปุ่มสิ้นสุดการขับ
-              // ==========================================
-              PrimaryButton(
-                label: 'สิ้นสุดการขับ',
-                icon: Icons.stop_circle_outlined,
-                onPressed: _endDrive,
-              ),
-            ],
+                const Spacer(),
+                SizedBox(
+                  width: 260,
+                  height: 260,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 260,
+                        height: 260,
+                        child: CircularProgressIndicator(
+                          value: (alertness / 100).toDouble(),
+                          strokeWidth: 10,
+                          backgroundColor: Colors.white12,
+                          valueColor: const AlwaysStoppedAnimation(
+                            AppColors.ringActive,
+                          ),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.remove_red_eye_outlined,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            alertness.toStringAsFixed(0),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 56,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _state.isAlert ? 'ระวัง!' : 'okay',
+                            style: TextStyle(
+                              color: _state.isAlert
+                                  ? Colors.redAccent
+                                  : Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _state.isAlert
+                      ? '● เสี่ยง • กรุณาหยุดพักรถ'
+                      : '● ปกติ • ขับได้อย่างปลอดภัย',
+                  style: TextStyle(
+                    color: _state.isAlert
+                        ? Colors.redAccent
+                        : AppColors.ringActive,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                PrimaryButton(
+                  label: 'สิ้นสุดการขับ',
+                  icon: Icons.stop_circle_outlined,
+                  onPressed: _endDrive,
+                ),
+              ],
+            ),
           ),
         ),
       ),

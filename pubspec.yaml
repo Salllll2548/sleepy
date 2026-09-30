@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   
-
+  simple_pip_mode: ^1.0.0 # แพ็กเกจช่วยสลับหน้าจอ PiP
   # กล้อง
   camera: ^0.10.6
 
@@ -41,6 +41,16 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/favicon.png" # พาธที่เก็บรูปของคุณ
+  min_sdk_android: 21
+
+  adaptive_icon_background: "#121A21" # ใส่รหัสสีพื้นหลังแอปของคุณ (เช่น สีธีมมืด)
+  adaptive_icon_foreground: "assets/favicon.png"
 
 flutter:
   uses-material-design: true

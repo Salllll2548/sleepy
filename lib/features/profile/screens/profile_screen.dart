@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../models/user_profile_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,40 +12,46 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with WidgetsBindingObserver {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ชื่อผู้ใช้จาก Firebase
   String _userName = 'กำลังโหลด...';
 
-  // ข้อมูล Profile เดิม
-  UserProfile _profile = const UserProfile(
-    name: 'ผู้ใช้',
-    faceVerified: true,
-    bluetoothConnected: true,
-  );
+  // สถานะสิทธิ์จริงจากระบบ (OS Permissions)
+  bool _cameraGranted = false;
+  bool _notificationGranted = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadProfile();
+    _checkPermissions();
   }
 
-  // ============================================================
-  // โหลดชื่อจาก Firestore
-  // ============================================================
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
+  }
 
   Future<void> _loadProfile() async {
     final user = _auth.currentUser;
 
     if (user == null) {
       if (!mounted) return;
-
       setState(() {
         _userName = 'ผู้ใช้';
       });
-
       return;
     }
 
@@ -56,31 +62,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (doc.exists) {
         final data = doc.data();
-
         final firstName = data?['firstName']?.toString() ?? '';
-
         final lastName = data?['lastName']?.toString() ?? '';
-
         final fullName = '$firstName $lastName'.trim();
 
         setState(() {
           _userName = fullName.isEmpty ? 'ผู้ใช้' : fullName;
         });
       } else {
-        // ถ้าไม่มีข้อมูลใน Firestore
         setState(() {
           _userName = user.displayName ?? 'ผู้ใช้';
         });
       }
     } catch (e) {
-      // ถ้าอ่าน Firestore ไม่ได้
-      // ใช้ชื่อจาก Firebase Authentication แทน
       if (!mounted) return;
-
       setState(() {
         _userName = user.displayName ?? 'ผู้ใช้';
       });
     }
+  }
+
+  Future<void> _checkPermissions() async {
+    final cameraStatus = await Permission.camera.status;
+    final notificationStatus = await Permission.notification.status;
+
+    if (!mounted) return;
+
+    setState(() {
+      _cameraGranted = cameraStatus.isGranted;
+      _notificationGranted = notificationStatus.isGranted;
+    });
+  }
+
+  Future<void> _handlePermissionToggle(
+      Permission permission, bool isCurrentlyGranted) async {
+    if (!isCurrentlyGranted) {
+      final status = await permission.request();
+      if (status.isPermanentlyDenied) {
+        await openAppSettings();
+      }
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'หากต้องการปิดสิทธิ์ กรุณาปิดผ่านการตั้งค่าของเครื่อง (App Settings)'),
+        ),
+      );
+      await openAppSettings();
+    }
+    await _checkPermissions();
   }
 
   @override
@@ -92,10 +123,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ======================================================
-          // Profile Header
-          // ======================================================
-
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -118,7 +145,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ชื่อจาก Firebase
                       Text(
                         _userName,
                         style: const TextStyle(
@@ -127,23 +153,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-
                       const SizedBox(height: 2),
-
                       Text(
-                        _profile.faceVerified
-                            ? 'ยืนยันใบหน้าแล้ว'
-                            : 'ยังไม่ยืนยันใบหน้า',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-
-                      Text(
-                        _profile.bluetoothConnected
-                            ? 'BT เชื่อมต่อ'
-                            : 'BT ยังไม่เชื่อมต่อ',
+                        _cameraGranted
+                            ? 'สิทธิ์กล้อง: อนุญาตแล้ว'
+                            : 'สิทธิ์กล้อง: ยังไม่อนุญาต',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -158,12 +172,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 24),
 
-          // ======================================================
-          // การตั้งค่าการเตือน
-          // ======================================================
-
           const Text(
-            'การตั้งค่าการเตือน',
+            'การจัดการสิทธิ์การเข้าถึงอุปกรณ์',
             style: TextStyle(
               fontWeight: FontWeight.w600,
             ),
@@ -173,74 +183,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           _SettingsCard(
             children: [
-              // ==================================================
-              // เสียงเตือน
-              // ==================================================
-
               _ToggleRow(
-                icon: Icons.volume_up_outlined,
-                title: 'เสียงเตือนผ่านลำโพงรถ',
-                subtitle: 'เปิด',
-                value: _profile.alarmThroughCarSpeaker,
-                onChanged: (v) {
-                  setState(() {
-                    _profile = _profile.copyWith(
-                      alarmThroughCarSpeaker: v,
-                    );
-                  });
-                },
+                icon: Icons.camera_alt_outlined,
+                title: 'กล้อง (AI ตรวจจับใบหน้า)',
+                subtitle: _cameraGranted ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+                value: _cameraGranted,
+                onChanged: (_) =>
+                    _handlePermissionToggle(Permission.camera, _cameraGranted),
               ),
 
               const Divider(height: 1),
-
-              // ==================================================
-              // Notification
-              // ==================================================
 
               _ToggleRow(
                 icon: Icons.notifications_none,
                 title: 'การแจ้งเตือนระบบ',
-                subtitle: 'ทุกระดับ',
-                value: _profile.systemNotificationsOn,
-                onChanged: (v) {
-                  setState(() {
-                    _profile = _profile.copyWith(
-                      systemNotificationsOn: v,
-                    );
-                  });
-                },
-              ),
-
-              const Divider(height: 1),
-
-              // ==================================================
-              // Night Mode
-              // ==================================================
-
-              _ToggleRow(
-                icon: Icons.nights_stay_outlined,
-                title: 'โหมดขับกลางคืน',
-                subtitle: 'ปิดใช้งาน',
-                value: _profile.nightDrivingMode,
-                onChanged: (v) {
-                  setState(() {
-                    _profile = _profile.copyWith(
-                      nightDrivingMode: v,
-                    );
-                  });
-                },
+                subtitle: _notificationGranted ? 'เปิดใช้งาน' : 'ปิดใช้งาน',
+                value: _notificationGranted,
+                onChanged: (_) => _handlePermissionToggle(
+                    Permission.notification, _notificationGranted),
               ),
             ],
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade50,
+                foregroundColor: Colors.red,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              icon: const Icon(Icons.logout),
+              label: const Text('ออกจากระบบ'),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+            ),
           ),
         ],
       ),
     );
   }
 }
-
-// ================================================================
-// Settings Card
-// ================================================================
 
 class _SettingsCard extends StatelessWidget {
   final List<Widget> children;
@@ -265,10 +255,6 @@ class _SettingsCard extends StatelessWidget {
     );
   }
 }
-
-// ================================================================
-// Toggle Row
-// ================================================================
 
 class _ToggleRow extends StatelessWidget {
   final IconData icon;
@@ -295,8 +281,9 @@ class _ToggleRow extends StatelessWidget {
       title: Text(title),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
+          color: value ? Colors.green : Colors.grey,
         ),
       ),
       trailing: Switch(

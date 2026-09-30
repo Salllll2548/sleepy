@@ -155,14 +155,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: Icon(
-              Icons.notifications_none,
-            ),
-          ),
-        ],
       ),
 
       // =========================
@@ -296,34 +288,6 @@ class _MainStatusCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),
-            ),
-          ),
-
-          // 🟢 2. สถานะ Bluetooth ลอยชิดขอบบนขวาอย่างอิสระ
-          Positioned(
-            top: 16,   // 👈 ระยะห่างจากขอบบนของสี่เหลี่ยมเข้ม (ปรับเพิ่ม/ลดได้ตามต้องการ)
-            right: 16, // 👈 ระยะห่างจากขอบขวา
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.bluetooth, size: 14, color: Color(0xFF133440)),
-                  SizedBox(width: 4),
-                  Text(
-                    'BT เชื่อมต่อแล้ว',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF133440),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),

@@ -28,13 +28,22 @@ class AuthService {
       // ANDROID / iOS
       // ========================================================
       else {
-        final GoogleSignInAccount googleUser =
-            await GoogleSignIn.instance.authenticate();
+        final GoogleSignIn signIn = GoogleSignIn.instance;
 
-        final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+        await signIn.initialize(
+          serverClientId:
+              '725700398220-lh5lrc732c6g2t8oos2cup9e6g9plneh.apps.googleusercontent.com',
+        );
+
+        final GoogleSignInAccount googleUser = await signIn.authenticate();
+
+        // ใน v7 การขอ scope/token แยกผ่าน authorizationClient
+        final authorization = await googleUser.authorizationClient
+            .authorizationForScopes(['email']);
 
         final credential = GoogleAuthProvider.credential(
-          idToken: googleAuth.idToken,
+          idToken: googleUser.authentication.idToken,
+          accessToken: authorization?.accessToken,
         );
 
         userCredential = await _auth.signInWithCredential(credential);

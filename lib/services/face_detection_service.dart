@@ -1,5 +1,6 @@
 import 'dart:ui' show Size;
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 /// ผลลัพธ์ของการตรวจจับใบหน้าในหนึ่งเฟรม
@@ -25,8 +26,6 @@ class FaceFrameResult {
 }
 
 /// ครอบการทำงานของ Google ML Kit Face Detection
-/// เลือกใช้ ML Kit แทน Teachable Machine เพราะให้ eyeOpenProbability และ
-/// มุมหัวมาโดยตรง ไม่ต้องเทรนโมเดลเอง และแม่นยำกว่าสำหรับงานนี้ (ดู README)
 class FaceDetectionService {
   final FaceDetector _detector = FaceDetector(
     options: FaceDetectorOptions(
@@ -72,11 +71,6 @@ class FaceDetectionService {
   }
 
   InputImage? _toInputImage(CameraImage image, CameraDescription camera) {
-    // หมายเหตุ: การแปลง CameraImage -> InputImage รายละเอียด rotation/format
-    // แตกต่างกันเล็กน้อยระหว่าง Android/iOS และเวอร์ชัน camera plugin
-    // ควรอ้างอิง ตัวอย่างทางการของ google_mlkit_face_detection (ไฟล์ตัวอย่าง
-    // "live_preview" ใน pub.dev) เพื่อ mapping ImageFormatGroup ให้ตรงกับ
-    // NV21 (Android) หรือ bgra8888 (iOS) — ใส่ placeholder ไว้ให้ต่อยอด
     final rotation = InputImageRotationValue.fromRawValue(
       camera.sensorOrientation,
     );
@@ -85,15 +79,21 @@ class FaceDetectionService {
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     if (format == null) return null;
 
-    final plane = image.planes.first;
+    // 💡 แก้ไข: รวมข้อมูล Bytes จากทุก Plane (รองรับทั้ง Android YUV420 และ iOS BGRA8888)
+    final WriteBuffer allBytes = WriteBuffer();
+    for (final Plane plane in image.planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+    final bytes = allBytes.done().buffer.asUint8List();
 
     return InputImage.fromBytes(
-      bytes: plane.bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
-        size: Size.square(image.width.toDouble()),
+        // 💡 แก้ไข: ใช้กว้างxยาวจริงของกล้อง แทน Size.square
+        size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
         format: format,
-        bytesPerRow: plane.bytesPerRow,
+        bytesPerRow: image.planes.first.bytesPerRow,
       ),
     );
   }
