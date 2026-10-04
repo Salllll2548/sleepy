@@ -8,10 +8,9 @@ import 'package:simple_pip_mode/simple_pip.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
 import '../../../models/drive_session_model.dart';
-import '../../../models/risk_score_model.dart';
 import '../../../services/alert_service.dart';
 import '../../../services/face_detection_service.dart';
-import '../../../services/risk_score_service.dart';
+import '../../../services/risk_score_manager.dart'; // เปลี่ยนจาก risk_score_service.dart
 
 class DrivingDetectionScreen extends StatefulWidget {
   const DrivingDetectionScreen({super.key});
@@ -22,12 +21,16 @@ class DrivingDetectionScreen extends StatefulWidget {
 
 class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
   CameraController? _cameraController;
+  // สร้างแบบไม่มี threshold ตายตัวตรงนี้ — ไปตั้งค่าจากผลคาลิเบรตใน
+  // Firestore ใน _loadCalibrationThenInitCamera() ก่อนเริ่มเปิดกล้อง
   final _faceDetectionService = FaceDetectionService();
-  final _riskScoreService = RiskScoreService();
+  final _riskManager = RiskScoreManager();
   final _alertService = AlertService();
 
-  RiskScoreState _state = RiskScoreState.initial();
   bool _isProcessingFrame = false;
+
+  // เก็บ RiskLevelInfo ปัจจุบันไว้ build UI (อัปเดตทุกครั้งที่ scoreNotifier เปลี่ยน)
+  RiskLevelInfo _levelInfo = getRiskLevelInfo(0);
 
   // บันทึกเวลาที่เริ่มเปิดหน้านี้ขับขี่
   late final DateTime _startedAt;
@@ -36,16 +39,55 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    _initCamera();
-    _riskScoreService.stream.listen((state) {
-      if (!mounted) return;
-      setState(() => _state = state);
-      if (state.isAlert) {
-        _alertService.triggerAlert();
-      } else {
-        _alertService.stopAlert();
+    _loadCalibrationThenInitCamera();
+    _riskManager.resetForNewTrip();
+    _riskManager.scoreNotifier.addListener(_onScoreChanged);
+  }
+
+  /// ดึงค่าที่คาลิเบรตไว้ตอนหน้า Face Scan จาก Firestore (ถ้ามี) มาตั้งให้
+  /// FaceDetectionService ก่อนเริ่มเปิดกล้อง — นี่คือจุดที่หายไปก่อนหน้านี้
+  /// ทำให้ค่าที่คาลิเบรตไปแล้วไม่เคยถูกใช้งานจริงเลย ถ้าผู้ใช้ยังไม่เคย
+  /// สแกน/ไม่ได้ login จะใช้ค่า default ที่ตั้งไว้ใน FaceDetectionService ต่อไป
+  Future<void> _loadCalibrationThenInitCamera() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final data = doc.data();
+        final eyeThreshold = data?['customEyeThreshold'];
+        final mouthThreshold = data?['customMouthThreshold'];
+        if (eyeThreshold is num) {
+          _faceDetectionService.eyeClosedThreshold = eyeThreshold.toDouble();
+        }
+        if (mouthThreshold is num) {
+          _faceDetectionService.mouthOpenRatioThreshold =
+              mouthThreshold.toDouble();
+        }
+      } catch (e) {
+        print('⚠️ โหลดค่าคาลิเบรตไม่สำเร็จ ใช้ค่า default แทน: $e');
       }
-    });
+    }
+    if (!mounted) return;
+    await _initCamera();
+  }
+
+  void _onScoreChanged() {
+    final info = getRiskLevelInfo(_riskManager.score);
+    if (!mounted) return;
+    setState(() => _levelInfo = info);
+
+    // playSound/useTts มาจากสเปกที่กำหนดไว้ใน risk_score_manager.dart เอง
+    // ระดับ moderate ขึ้นไปเริ่มมีเสียง, severe เท่านั้นที่พูดผ่านลำโพงรถ (TTS)
+    if (info.playSound) {
+      _alertService.triggerAlert();
+      // TODO: ถ้า info.useTts == true ให้ส่งข้อความ info.message พูดผ่าน
+      // Bluetooth Audio ของรถแทน/เพิ่มเติมจากเสียง alarm ธรรมดา
+    } else {
+      _alertService.stopAlert();
+    }
   }
 
   Future<void> _initCamera() async {
@@ -70,7 +112,14 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
       _isProcessingFrame = true;
       final result =
           await _faceDetectionService.processCameraImage(image, frontCamera);
-      if (result != null) _riskScoreService.addFrame(result);
+      if (result != null) {
+        // ส่งเข้า RiskScoreManager แยกตามหมวด ตามที่ตัว manager ออกแบบไว้
+        // เดิม RiskScoreService ตัวเก่าไม่เคยอ่านเรื่องปาก (หาว) เลย
+        _riskManager.onEyeState(result.eyesClosed);
+        _riskManager.onMouthState(result.isYawning);
+        _riskManager.onHeadPitch(result.headEulerAngleX);
+        _riskManager.onFaceVisibility(result.faceFound);
+      }
       _isProcessingFrame = false;
     });
   }
@@ -83,7 +132,7 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
       elapsed: elapsed,
     );
 
-    // บันทึกลง Firebase Firestore
+    // บันทึกลง Firebase Firestore (คงของเดิมไว้ทั้งหมด)
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
@@ -94,6 +143,8 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
             .add({
           'startedAt': Timestamp.fromDate(_startedAt),
           'elapsedSeconds': elapsed.inSeconds,
+          'finalScore': _riskManager.score,
+          'eventCounts': _riskManager.tripSummaryCounts(),
           'createdAt': FieldValue.serverTimestamp(),
         });
         print('✅ บันทึกประวัติการขับลง Firestore สำเร็จ!');
@@ -158,17 +209,19 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
   void dispose() {
     _cameraController?.dispose();
     _faceDetectionService.dispose();
-    _riskScoreService.dispose();
+    _riskManager.scoreNotifier.removeListener(_onScoreChanged);
+    _riskManager.dispose();
     _alertService.stopAlert();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final alertness = (100 - _state.score).clamp(0, 100);
+    final score = _riskManager.score;
+    final alertness = (100 - score).clamp(0, 100);
+    final isAlert = _levelInfo.playSound; // moderate ขึ้นไปถือว่า alert
 
     return PipWidget(
-      // 🟢 ลบ autoPip: true ออกแล้วเริ่มที่ pipChild ได้เลย
       pipChild: Scaffold(
         backgroundColor: AppColors.darkCard,
         body: SafeArea(
@@ -180,7 +233,6 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                 height: 130,
                 child: Stack(
                   children: [
-                    // 1. จุดสีแดงมุมบนซ้าย (แสดงสถานะทำงาน/บันทึก)
                     Positioned(
                       top: 8,
                       left: 8,
@@ -193,8 +245,6 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                         ),
                       ),
                     ),
-
-                    // 2. วงแหวนและเลขคะแนนตรงกลาง
                     Center(
                       child: SizedBox(
                         width: 85,
@@ -202,7 +252,6 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
-                            // วงแหวนโหลด
                             SizedBox(
                               width: 85,
                               height: 85,
@@ -211,13 +260,10 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                                 strokeWidth: 5,
                                 backgroundColor: Colors.white12,
                                 valueColor: AlwaysStoppedAnimation(
-                                  _state.isAlert
-                                      ? Colors.redAccent
-                                      : AppColors.ringActive,
+                                  isAlert ? Colors.redAccent : AppColors.ringActive,
                                 ),
                               ),
                             ),
-                            // ตัวเลขคะแนน + ข้อความสถานะ
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -230,11 +276,9 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                                   ),
                                 ),
                                 Text(
-                                  _state.isAlert ? 'ระวัง!' : 'okay',
+                                  _levelInfo.label,
                                   style: TextStyle(
-                                    color: _state.isAlert
-                                        ? Colors.redAccent
-                                        : Colors.white70,
+                                    color: isAlert ? Colors.redAccent : Colors.white70,
                                     fontSize: 10,
                                   ),
                                 ),
@@ -251,7 +295,6 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
           ),
         ),
       ),
-
       child: Scaffold(
         backgroundColor: AppColors.darkCard,
         body: SafeArea(
@@ -277,10 +320,7 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                             size: 30,
                           ),
                           onPressed: () => SimplePip().enterPipMode(
-                            aspectRatio: (
-                              1,
-                              1
-                            ), // กำหนดความกว้าง : ความสูง เป็น 1:1
+                            aspectRatio: (1, 1),
                           ),
                         )
                       ],
@@ -302,19 +342,13 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                           value: (alertness / 100).toDouble(),
                           strokeWidth: 10,
                           backgroundColor: Colors.white12,
-                          valueColor: const AlwaysStoppedAnimation(
-                            AppColors.ringActive,
-                          ),
+                          valueColor: AlwaysStoppedAnimation(_levelInfo.color),
                         ),
                       ),
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.remove_red_eye_outlined,
-                            color: Colors.white70,
-                            size: 20,
-                          ),
+                          Text(_levelInfo.emoji, style: const TextStyle(fontSize: 22)),
                           const SizedBox(height: 6),
                           Text(
                             alertness.toStringAsFixed(0),
@@ -325,12 +359,8 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                             ),
                           ),
                           Text(
-                            _state.isAlert ? 'ระวัง!' : 'okay',
-                            style: TextStyle(
-                              color: _state.isAlert
-                                  ? Colors.redAccent
-                                  : Colors.white70,
-                            ),
+                            _levelInfo.label,
+                            style: TextStyle(color: _levelInfo.color),
                           ),
                         ],
                       ),
@@ -339,15 +369,8 @@ class _DrivingDetectionScreenState extends State<DrivingDetectionScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  _state.isAlert
-                      ? '● เสี่ยง • กรุณาหยุดพักรถ'
-                      : '● ปกติ • ขับได้อย่างปลอดภัย',
-                  style: TextStyle(
-                    color: _state.isAlert
-                        ? Colors.redAccent
-                        : AppColors.ringActive,
-                    fontSize: 12,
-                  ),
+                  _levelInfo.message,
+                  style: TextStyle(color: _levelInfo.color, fontSize: 12),
                 ),
                 const SizedBox(height: 24),
                 PrimaryButton(
@@ -383,8 +406,7 @@ class _Pill extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: Colors.white),
           const SizedBox(width: 4),
-          Text(label,
-              style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11)),
         ],
       ),
     );

@@ -84,22 +84,22 @@ class RiskScoreManager {
   static const double decayPerTick = 2.0; // ลดคะแนนกี่แต้มต่อ tick
   static const Duration decayInterval = Duration(seconds: 5);
  
-  static const Duration eyeShortThreshold = Duration(seconds: 1);
-  static const Duration eyeLongThreshold = Duration(seconds: 2);
+  static const Duration eyeShortThreshold = Duration(milliseconds: 500);
+  static const Duration eyeLongThreshold = Duration(seconds: 8);
  
   static const Duration blinkWindow = Duration(seconds: 30);
   static const int blinkCountThreshold = 8; // กระพริบเกินกี่ครั้งใน blinkWindow ถือว่า "ตาปรือ"
-  static const Duration droopyCooldown = Duration(seconds: 15);
+  static const Duration droopyCooldown = Duration(seconds: 30);
  
-  static const Duration yawnWindow = Duration(minutes: 5);
-  static const Duration yawnCooldown = Duration(seconds: 3); // กันนับหาวครั้งเดียวซ้ำ
+  static const Duration yawnWindow = Duration(minutes: 3);
+  static const Duration yawnCooldown = Duration(seconds: 6); // กันนับหาวครั้งเดียวซ้ำ
  
   static const double headNodAngleThreshold = 20.0; // องศา ก้มเกินนี้ถือว่า nod
   static const Duration headNodSustain = Duration(milliseconds: 600);
-  static const Duration headNodCooldown = Duration(seconds: 4);
+  static const Duration headNodCooldown = Duration(seconds: 6);
  
-  static const Duration faceLostThreshold = Duration(milliseconds: 1500);
-  static const Duration faceLostCooldown = Duration(seconds: 5);
+  static const Duration faceLostThreshold = Duration(seconds: 10);
+  static const Duration faceLostCooldown = Duration(seconds: 10);
  
   static const Duration comboWindow = Duration(seconds: 6);
   static const Duration comboCooldown = Duration(seconds: 8);
@@ -253,9 +253,7 @@ class RiskScoreManager {
     }
   }
  
-  // ============ 3) หัว: ต้องต่อจาก ML Kit Face Detection แยกต่างหาก ============
-  /// pitchAngle = ค่า headEulerAngleX จาก ML Kit (องศา, ค่าลบ/บวกแล้วแต่ทิศก้ม-เงย)
-  /// เรียกทุกเฟรมที่ ML Kit ประมวลผลเสร็จ
+
   void onHeadPitch(double pitchAngle) {
     final now = DateTime.now();
     final isNodding = pitchAngle.abs() > headNodAngleThreshold;

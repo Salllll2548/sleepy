@@ -27,6 +27,9 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
 
   final List<double> _openEyeSamples = [];
   final List<double> _closedEyeSamples = [];
+  // ใหม่: เก็บค่าระยะเปิดปากตอนหาวจริง ไว้คาลิเบรต mouthOpenRatioThreshold
+  // เฉพาะคน (เดิมขั้นตอนนี้ไม่เคยเปิดกล้องสตรีมเลย ไม่เก็บค่าอะไรจริง)
+  final List<double> _yawnMouthSamples = [];
 
   @override
   void initState() {
@@ -110,13 +113,27 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
 
     // ------------------------------------
     // ข้อที่ 3: ทดสอบการอ้าปาก / หาว
+    // แก้ไข: เดิมขั้นตอนนี้แค่ delay เฉยๆ ไม่เปิดกล้องสตรีม ไม่เก็บค่า
+    // อะไรเลย ตอนนี้เปิดสตรีมเก็บ mouthOpenRatio จริงระหว่างผู้ใช้หาว
     // ------------------------------------
     setState(() {
       _activeStep = 2;
-      _statusText = '3/3 กรุณาลอง "อ้าปาก/หาว" ช้าๆ';
+      _statusText = '3/3 กรุณาลอง "อ้าปาก/หาว" ช้าๆ ค้างไว้';
+      _yawnMouthSamples.clear();
+    });
+
+    await _cameraController!.startImageStream((image) async {
+      final result = await _faceService.processCameraImage(
+        image,
+        _cameraController!.description,
+      );
+      if (result != null && result.mouthOpenRatio != null) {
+        _yawnMouthSamples.add(result.mouthOpenRatio!);
+      }
     });
 
     await Future.delayed(const Duration(seconds: 3));
+    await _cameraController!.stopImageStream();
 
     setState(() {
       _stepCompleted[2] = true;
@@ -139,14 +156,24 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
         : 0.1;
 
     // คำนวณจุดกึ่งกลางระหว่างลืมตากับหลับตาเพื่อเป็น Threshold เฉพาะตัว
-    final calculatedThreshold = (avgOpen + avgClosed) / 2;
+    final calculatedEyeThreshold = (avgOpen + avgClosed) / 2;
+
+    // ค่าเฉลี่ยระยะเปิดปากตอนหาวจริงของคนนี้ ใช้ 60% ของค่านั้นเป็นจุดเริ่ม
+    // ถือว่า "กำลังหาว" — ถ้าเก็บตัวอย่างไม่ได้เลย (หาจุดปากไม่เจอ) ใช้ค่า
+    // default 0.10 แทนไปก่อน
+    final avgYawnRatio = _yawnMouthSamples.isNotEmpty
+        ? _yawnMouthSamples.reduce((a, b) => a + b) / _yawnMouthSamples.length
+        : null;
+    final calculatedMouthThreshold =
+        avgYawnRatio != null ? (avgYawnRatio * 0.6).clamp(0.05, 0.3) : 0.10;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'isCalibrated': true,
-          'customEyeThreshold': calculatedThreshold,
+          'customEyeThreshold': calculatedEyeThreshold,
+          'customMouthThreshold': calculatedMouthThreshold,
           'calibratedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {
@@ -209,7 +236,6 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                         else
                           const Center(child: CircularProgressIndicator()),
 
-                        // แสดงไอคอนติ๊กถูกตัวใหญ่ทับเมื่อสแกนเสร็จสมบูรณ์
                         if (allDone)
                           Container(
                             color: Colors.black38,

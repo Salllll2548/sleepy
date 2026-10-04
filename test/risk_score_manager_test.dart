@@ -3,7 +3,7 @@
 // รันด้วยคำสั่ง: flutter test test/risk_score_manager_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sleepy/risk_score_manager.dart'; // <-- แก้ตรงนี้
+import 'package:sleepy/services/risk_score_manager.dart'; // <-- แก้ตรงนี้
 
 void main() {
   group('RiskScoreManager - ตา', () {
