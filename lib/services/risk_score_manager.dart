@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
- 
+
 /// ระดับความเสี่ยง 4 ระดับ พร้อมสี/ข้อความ/พฤติกรรมของแอปในแต่ละระดับ
 enum RiskLevel { normal, mild, moderate, severe }
- 
+
 class RiskLevelInfo {
   final RiskLevel level;
   final Color color;
@@ -12,7 +12,7 @@ class RiskLevelInfo {
   final String message;
   final bool playSound; // เริ่มมีเสียงเตือนตั้งแต่ระดับนี้
   final bool useTts; // ระดับนี้ต้องพูดเตือนผ่านลำโพงรถ
- 
+
   const RiskLevelInfo({
     required this.level,
     required this.color,
@@ -23,7 +23,7 @@ class RiskLevelInfo {
     required this.useTts,
   });
 }
- 
+
 RiskLevelInfo getRiskLevelInfo(double score) {
   if (score < 30) {
     return const RiskLevelInfo(
@@ -42,7 +42,7 @@ RiskLevelInfo getRiskLevelInfo(double score) {
       emoji: '🟡',
       label: 'เริ่มง่วง',
       message: '⚠️ เริ่มมีสัญญาณความง่วง',
-      playSound: false, // ตามสเปก: ระดับนี้แค่โชว์บนจอ ยังไม่ต้องมีเสียง
+      playSound: false,
       useTts: false,
     );
   } else if (score < 70) {
@@ -63,93 +63,95 @@ RiskLevelInfo getRiskLevelInfo(double score) {
       label: 'เสี่ยงหลับใน',
       message: '🚨 ตรวจพบความเสี่ยงสูง กรุณาจอดรถในที่ปลอดภัยและพักผ่อน',
       playSound: true,
-      useTts: true, // ระดับนี้เท่านั้นที่พูดผ่าน Bluetooth ไปลำโพงรถ
+      useTts: true,
     );
   }
 }
- 
-/// event ที่เกิดขึ้น ใช้ track "อะไรเกิดขึ้นตอนไหน" สำหรับ history/trip summary
-/// category ใช้แยกว่าเป็นพฤติกรรม "หมวด" ไหน (eye/mouth/head/face) สำหรับเช็ค combo
-/// type ใช้เป็นชื่อเฉพาะของ event นั้นๆ สำหรับ log/สรุปท้ายทริป
+
 class RiskEvent {
   final DateTime time;
   final String category; // 'eye' | 'mouth' | 'head' | 'face' | 'combo'
-  final String type; // 'eye_closed_short' / 'eye_closed_long' / 'droopy' / 'yawn' / 'yawn_repeat' / 'head_nod' / 'face_lost' / 'combo'
+  final String type;
   final int points;
   const RiskEvent(this.time, this.category, this.type, this.points);
 }
- 
+
 class RiskScoreManager {
   // ---------- ค่าที่ปรับได้ (tune ตอนทดสอบจริง) ----------
-  static const double decayPerTick = 2.0; // ลดคะแนนกี่แต้มต่อ tick
-  static const Duration decayInterval = Duration(seconds: 5);
- 
-  static const Duration eyeShortThreshold = Duration(milliseconds: 500);
-  static const Duration eyeLongThreshold = Duration(seconds: 8);
- 
+  static const double decayPerTick = 1.0;
+  static const Duration decayInterval = Duration(seconds: 8);
+
+  // ปรับจาก 1.0 วิ เป็น 1.3 วิ เพราะฟีดแบ็กพบว่าการกระพริบตาปกติบางครั้ง
+  // (โดยเฉพาะตอนเหนื่อยแต่ไม่ง่วง) ก็ยาวใกล้ 1 วิได้ ขยับ margin กันไม่ให้ false positive
+  static const Duration eyeShortThreshold = Duration(milliseconds: 1300);
+  static const Duration eyeLongThreshold = Duration(seconds: 2);
+
   static const Duration blinkWindow = Duration(seconds: 30);
-  static const int blinkCountThreshold = 8; // กระพริบเกินกี่ครั้งใน blinkWindow ถือว่า "ตาปรือ"
-  static const Duration droopyCooldown = Duration(seconds: 30);
- 
-  static const Duration yawnWindow = Duration(minutes: 3);
-  static const Duration yawnCooldown = Duration(seconds: 6); // กันนับหาวครั้งเดียวซ้ำ
- 
-  static const double headNodAngleThreshold = 20.0; // องศา ก้มเกินนี้ถือว่า nod
+  static const int blinkCountThreshold = 8;
+  static const Duration droopyCooldown = Duration(seconds: 15);
+
+  // ต้องอ้าปากต่อเนื่องอย่างน้อยเท่านี้ถึงจะนับเป็นหาว
+  // กันกรณีพูดคุย/หัวเราะที่ปากขยับเร็วๆ ถูกเข้าใจผิดว่าเป็นหาว
+  static const Duration minYawnDuration = Duration(milliseconds: 1200);
+  static const Duration yawnWindow = Duration(minutes: 5);
+  static const Duration yawnCooldown = Duration(seconds: 3);
+
+  static const double headNodAngleThreshold = 20.0;
   static const Duration headNodSustain = Duration(milliseconds: 600);
-  static const Duration headNodCooldown = Duration(seconds: 6);
- 
-  static const Duration faceLostThreshold = Duration(seconds: 10);
-  static const Duration faceLostCooldown = Duration(seconds: 10);
- 
+  static const Duration headNodCooldown = Duration(seconds: 4);
+
+  static const Duration faceLostThreshold = Duration(milliseconds: 1500);
+  static const Duration faceLostCooldown = Duration(seconds: 5);
+  // ไม่พบหน้าต่อเนื่องนานผิดปกติ (เช่น มือถือหล่น, คนขับทรุดจนหลุดกรอบกล้อง)
+  // ถือเป็นเหตุฉุกเฉิน ต้องบังคับเข้าสถานะแดงทันที ไม่ปล่อยให้เป็นแค่คะแนนสะสมที่ decay หายได้
+  static const Duration criticalFaceLostThreshold = Duration(seconds: 4);
+
   static const Duration comboWindow = Duration(seconds: 6);
   static const Duration comboCooldown = Duration(seconds: 8);
- 
+
   // ---------- state ----------
   final ValueNotifier<double> scoreNotifier = ValueNotifier<double>(0);
-  final List<RiskEvent> _recentEvents = []; // เก็บไว้เช็ค combo (ไม่รวม combo event เอง)
-  final List<RiskEvent> tripLog = []; // ทั้งหมดตั้งแต่เริ่มทริป ไว้ทำกราฟ/สรุปท้ายทริป
- 
+  final List<RiskEvent> _recentEvents = [];
+  final List<RiskEvent> tripLog = [];
+
   double get score => scoreNotifier.value;
- 
+
   Timer? _decayTimer;
- 
-  // eye tracking
+
   DateTime? _eyeClosedStart;
   bool _eyeTier1Fired = false;
   bool _eyeTier2Fired = false;
   final List<DateTime> _blinkTimestamps = [];
   DateTime? _lastDroopyFire;
- 
-  // yawn tracking
+
   DateTime? _yawnStart;
   final List<DateTime> _yawnTimestamps = [];
   DateTime? _lastYawnCounted;
- 
-  // head pose tracking
+
   DateTime? _headNodStart;
   DateTime? _lastHeadNodFire;
- 
-  // face visibility tracking
+
   DateTime? _faceLostStart;
   DateTime? _lastFaceLostFire;
- 
+  bool _criticalFaceLostFired = false;
+
   DateTime? _lastComboFire;
- 
+
   RiskScoreManager() {
     _decayTimer = Timer.periodic(decayInterval, (_) => _decay());
   }
- 
+
   void dispose() {
     _decayTimer?.cancel();
     scoreNotifier.dispose();
   }
- 
+
   void _decay() {
     if (scoreNotifier.value > 0) {
       scoreNotifier.value = (scoreNotifier.value - decayPerTick).clamp(0, 100);
     }
   }
- 
+
   void _addScore(String category, String type, int points) {
     final now = DateTime.now();
     scoreNotifier.value = (scoreNotifier.value + points).clamp(0, 100);
@@ -159,19 +161,16 @@ class RiskScoreManager {
     _recentEvents.removeWhere((e) => now.difference(e.time) > comboWindow);
     _checkCombo(now);
   }
- 
-  /// ยิง bonus ก็ต่อเมื่อมี "หมวดพฤติกรรมต่างกัน" เกิดใกล้ๆ กัน
-  /// (ตา+ปาก, ตา+หัว, ฯลฯ) ไม่ใช่แค่ event ชื่อต่างกันในหมวดเดียวกัน
-  /// เช่น eye_closed_short กับ eye_closed_long ทั้งคู่คือหมวด 'eye' เหมือนกัน ไม่ควรนับเป็น combo
+
   void _checkCombo(DateTime now) {
     if (_lastComboFire != null && now.difference(_lastComboFire!) < comboCooldown) {
-      return; // ยังอยู่ใน cooldown ของ combo เอง กันยิงรัว
+      return;
     }
     final distinctCategories = _recentEvents
         .where((e) => e.category != 'combo')
         .map((e) => e.category)
         .toSet();
- 
+
     if (distinctCategories.length >= 3) {
       _lastComboFire = now;
       scoreNotifier.value = (scoreNotifier.value + 20).clamp(0, 100);
@@ -182,28 +181,24 @@ class RiskScoreManager {
       tripLog.add(RiskEvent(now, 'combo', 'combo', 10));
     }
   }
- 
-  // ============ 1) ตา: เรียกทุกเฟรมที่โมเดลตรวจจับตาได้ ============
-  /// isClosed = true เมื่อเฟรมนี้ตรวจว่า eye_closed, false เมื่อ eye_opened
+
+  // ============ 1) ตา ============
   void onEyeState(bool isClosed) {
     final now = DateTime.now();
- 
+
     if (isClosed) {
       _eyeClosedStart ??= now;
       final elapsed = now.difference(_eyeClosedStart!);
- 
-      // ยิงทันทีระหว่างที่ตายังปิดต่อเนื่อง ไม่ต้องรอให้ลืมตาก่อน
-      // เผื่อกรณีหลับสนิทแล้วไม่ลืมตาอีกเลย (สำคัญกว่าการรอ debounce)
+
       if (elapsed >= eyeShortThreshold && !_eyeTier1Fired) {
         _eyeTier1Fired = true;
         _addScore('eye', 'eye_closed_short', 10);
       }
       if (elapsed >= eyeLongThreshold && !_eyeTier2Fired) {
         _eyeTier2Fired = true;
-        _addScore('eye', 'eye_closed_long', 10); // รวมกับ tier1 แล้ว = 20 ตามสเปก
+        _addScore('eye', 'eye_closed_long', 10);
       }
     } else {
-      // ตาลืมแล้ว: ถ้าเพิ่งปิดสั้นๆ (ไม่ถึง eyeShortThreshold) นับเป็น "กระพริบ" ปกติ
       if (_eyeClosedStart != null) {
         final elapsed = now.difference(_eyeClosedStart!);
         if (elapsed < eyeShortThreshold) {
@@ -215,11 +210,11 @@ class RiskScoreManager {
       _eyeTier2Fired = false;
     }
   }
- 
+
   void _recordBlink(DateTime now) {
     _blinkTimestamps.add(now);
     _blinkTimestamps.removeWhere((t) => now.difference(t) > blinkWindow);
- 
+
     if (_blinkTimestamps.length >= blinkCountThreshold) {
       final cooldownOk = _lastDroopyFire == null || now.difference(_lastDroopyFire!) > droopyCooldown;
       if (cooldownOk) {
@@ -228,36 +223,43 @@ class RiskScoreManager {
       }
     }
   }
- 
-  // ============ 2) ปาก: เรียกทุกเฟรมที่โมเดลตรวจจับปากได้ ============
-  /// isYawning = true เมื่อเฟรมนี้ตรวจว่า yawning
+
+  // ============ 2) ปาก ============
+  /// isYawning = true เมื่อเฟรมนี้ตรวจว่า yawning (ต้องเรียกทุกเฟรม ทั้ง true/false)
   void onMouthState(bool isYawning) {
     final now = DateTime.now();
     if (isYawning) {
       _yawnStart ??= now;
-    } else if (_yawnStart != null) {
-      // ปากปิดแล้ว = จบการหาวครั้งนี้ นับคะแนนตอนนี้
-      final cooldownOk = _lastYawnCounted == null || now.difference(_lastYawnCounted!) > yawnCooldown;
-      if (cooldownOk) {
-        _lastYawnCounted = now;
-        _yawnTimestamps.add(now);
-        _yawnTimestamps.removeWhere((t) => now.difference(t) > yawnWindow);
- 
-        if (_yawnTimestamps.length >= 2) {
-          _addScore('mouth', 'yawn_repeat', 15); // หาวซ้ำในช่วง yawnWindow
-        } else {
-          _addScore('mouth', 'yawn', 10); // หาวครั้งแรกในช่วง window
-        }
-      }
-      _yawnStart = null;
+      return;
+    }
+
+    if (_yawnStart == null) return; // ปากปิดอยู่แล้ว ไม่มีอะไรต้องทำ
+
+    final openDuration = now.difference(_yawnStart!);
+    _yawnStart = null;
+
+    // อ้าปากสั้นเกินไป (เช่น พูดคุย หัวเราะ) ไม่นับเป็นหาว
+    if (openDuration < minYawnDuration) return;
+
+    final cooldownOk = _lastYawnCounted == null || now.difference(_lastYawnCounted!) > yawnCooldown;
+    if (!cooldownOk) return;
+
+    _lastYawnCounted = now;
+    _yawnTimestamps.add(now);
+    _yawnTimestamps.removeWhere((t) => now.difference(t) > yawnWindow);
+
+    if (_yawnTimestamps.length >= 2) {
+      _addScore('mouth', 'yawn_repeat', 15);
+    } else {
+      _addScore('mouth', 'yawn', 10);
     }
   }
- 
 
+  // ============ 3) หัว ============
   void onHeadPitch(double pitchAngle) {
     final now = DateTime.now();
     final isNodding = pitchAngle.abs() > headNodAngleThreshold;
- 
+
     if (isNodding) {
       _headNodStart ??= now;
       final elapsed = now.difference(_headNodStart!);
@@ -272,14 +274,14 @@ class RiskScoreManager {
       _headNodStart = null;
     }
   }
- 
-  // ============ 4) ไม่พบตาทั้งสองข้าง (เหม่อ/หันมองข้างทาง) ============
-  /// เรียกทุกเฟรม: eyesVisible = false เมื่อเฟรมนั้นไม่มี eye_open หรือ eye_closed เลยแม้แต่ข้างเดียว
+
+  // ============ 4) ไม่พบตาทั้งสองข้าง ============
   void onFaceVisibility(bool eyesVisible) {
     final now = DateTime.now();
     if (!eyesVisible) {
       _faceLostStart ??= now;
       final elapsed = now.difference(_faceLostStart!);
+
       if (elapsed >= faceLostThreshold) {
         final cooldownOk = _lastFaceLostFire == null || now.difference(_lastFaceLostFire!) > faceLostCooldown;
         if (cooldownOk) {
@@ -287,11 +289,20 @@ class RiskScoreManager {
           _addScore('face', 'face_lost', 10);
         }
       }
+
+      // กรณีร้ายแรง: หน้าหายต่อเนื่องนานผิดปกติ บังคับเข้าสถานะแดงทันที
+      // ไม่รอให้คะแนนสะสมถึง เพราะ decay อาจทำให้คะแนนไม่ถึงเกณฑ์ทันเวลา
+      if (elapsed >= criticalFaceLostThreshold && !_criticalFaceLostFired) {
+        _criticalFaceLostFired = true;
+        scoreNotifier.value = 100;
+        tripLog.add(RiskEvent(now, 'face', 'face_lost_critical', 0));
+      }
     } else {
       _faceLostStart = null;
+      _criticalFaceLostFired = false;
     }
   }
- 
+
   // ============ เริ่ม/จบทริป ============
   void resetForNewTrip() {
     scoreNotifier.value = 0;
@@ -305,9 +316,9 @@ class RiskScoreManager {
     _yawnTimestamps.clear();
     _headNodStart = null;
     _faceLostStart = null;
+    _criticalFaceLostFired = false;
   }
- 
-  /// สรุปท้ายทริป: จำนวนครั้งของแต่ละพฤติกรรม
+
   Map<String, int> tripSummaryCounts() {
     final counts = <String, int>{};
     for (final e in tripLog) {
@@ -316,4 +327,3 @@ class RiskScoreManager {
     return counts;
   }
 }
- 
