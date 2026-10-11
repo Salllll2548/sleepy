@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-/// ระดับความเสี่ยง 4 ระดับ พร้อมสี/ข้อความ/พฤติกรรมของแอปในแต่ละระดับ
 enum RiskLevel { normal, mild, moderate, severe }
 
 class RiskLevelInfo {
@@ -92,7 +91,7 @@ class RiskScoreManager {
 
   // ต้องอ้าปากต่อเนื่องอย่างน้อยเท่านี้ถึงจะนับเป็นหาว
   // กันกรณีพูดคุย/หัวเราะที่ปากขยับเร็วๆ ถูกเข้าใจผิดว่าเป็นหาว
-  static const Duration minYawnDuration = Duration(milliseconds: 1200);
+  static const Duration minYawnDuration = Duration(milliseconds: 2500);
   static const Duration yawnWindow = Duration(minutes: 5);
   static const Duration yawnCooldown = Duration(seconds: 3);
 

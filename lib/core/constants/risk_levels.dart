@@ -24,25 +24,25 @@ class RiskLevels {
   static const all = <RiskLevelInfo>[
     RiskLevelInfo(
       level: RiskLevel.normal,
-      rangeLabel: '0-29',
+      rangeLabel: '70-100',
       nameLabel: 'ปกติ',
       color: AppColors.riskNormal,
     ),
     RiskLevelInfo(
       level: RiskLevel.caution,
-      rangeLabel: '30-49',
+      rangeLabel: '50-69',
       nameLabel: 'เริ่มเฝ้าระวัง',
       color: AppColors.riskCaution,
     ),
     RiskLevelInfo(
       level: RiskLevel.warning,
-      rangeLabel: '50-69',
+      rangeLabel: '30-49',
       nameLabel: 'เสี่ยง',
       color: AppColors.riskWarning,
     ),
     RiskLevelInfo(
       level: RiskLevel.danger,
-      rangeLabel: '70-100',
+      rangeLabel: '0-29',
       nameLabel: 'อันตรายมาก',
       color: AppColors.riskDanger,
     ),
