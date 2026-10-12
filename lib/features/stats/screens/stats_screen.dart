@@ -210,7 +210,7 @@ class _EventCard extends StatelessWidget {
               color: (event.isWarning
                       ? AppColors.riskWarning
                       : AppColors.riskNormal)
-                  .withOpacity(0.12),
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(

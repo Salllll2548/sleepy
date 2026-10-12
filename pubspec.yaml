@@ -14,9 +14,6 @@ dependencies:
   # กล้อง
   camera: ^0.10.6
 
-  # AI ตรวจจับใบหน้า/ดวงตา/มุมหัว (on-device, ฟรี)
-  google_mlkit_face_detection: ^0.10.0
-
   # แจ้งเตือน
   flutter_local_notifications: ^17.2.3
 

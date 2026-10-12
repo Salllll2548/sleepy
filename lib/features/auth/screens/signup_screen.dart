@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/primary_button.dart';
 import '../../../services/auth_service.dart';
 import '../../onboarding/screens/pre_drive_setup_screen.dart';
 

@@ -365,7 +365,7 @@ class _RiskLevelChip extends StatelessWidget {
           vertical: 10,
         ),
         decoration: BoxDecoration(
-          color: info.color.withOpacity(0.12),
+          color: info.color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(

@@ -186,13 +186,12 @@ class AuthService {
       if (currentUser == null) {
         return 'ไม่พบผู้ใช้';
       }
-
+/*
       if (!currentUser.emailVerified) {
         await _auth.signOut();
-
         return 'กรุณายืนยัน Gmail ก่อนเข้าสู่ระบบ';
       }
-
+*/
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {

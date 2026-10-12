@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/primary_button.dart';
-import 'face_scan_screen.dart';
+import '../../../shared/navigation/main_shell.dart';
 
 class PreDriveSetupScreen extends StatefulWidget {
   const PreDriveSetupScreen({super.key});
@@ -34,9 +34,10 @@ class _PreDriveSetupScreenState extends State<PreDriveSetupScreen> {
     }
 
     if (!mounted) return;
-    Navigator.push(
+    Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const FaceScanScreen()),
+      MaterialPageRoute(builder: (_) => const MainShell()),
+      (route) => false,
     );
   }
 
@@ -125,7 +126,7 @@ class _SettingToggleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -134,7 +135,7 @@ class _SettingToggleCard extends StatelessWidget {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: AppColors.primary.withOpacity(0.1),
+            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
             child: Icon(icon, color: AppColors.primary, size: 20),
           ),
           const SizedBox(width: 12),

@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/app_text_field.dart';
-import '../../../core/widgets/primary_button.dart';
 import '../../../services/auth_service.dart';
-import '../../onboarding/screens/pre_drive_setup_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -13,6 +9,7 @@ class LoginScreen extends StatefulWidget {
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
+
 class _LoginScreenState extends State<LoginScreen> {
   final _authService = AuthService();
 
@@ -56,14 +53,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    if (error == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const PreDriveSetupScreen(),
-        ),
-      );
-    } else {
+    // 🟢 ถ้า error == null ไม่ต้องสั่ง Navigator.pushReplacement
+    // ปล่อยให้ AuthGate สลับหน้าเป็น MainShell ให้อัตโนมัติ
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
@@ -89,14 +81,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = false;
     });
 
-    if (error == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const PreDriveSetupScreen(),
-        ),
-      );
-    } else {
+    // 🟢 ถ้า error == null ไม่ต้องสั่ง Navigator.pushReplacement
+    // ปล่อยให้ AuthGate สลับหน้าเป็น MainShell ให้อัตโนมัติ
+    if (error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
